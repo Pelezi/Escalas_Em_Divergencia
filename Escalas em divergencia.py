@@ -51,38 +51,49 @@ with row0[0]:
     periodo = st.date_input('Período', value=[], format='DD/MM/YYYY')
 
 # Filtra os dados conforme o intervalo de tempo informado
-if len(periodo) == 2:  # Verifica se o intervalo está completo
+with row0[0]:
+    show_future = st.checkbox('Mostrar apenas escalas futuras', value=True)
+
+df_filtrado = st.session_state.df_scale_date_divergence
+
+if show_future:
+
+    hoje = pd.Timestamp.today().date()
+    df_filtrado = df_filtrado[
+        (df_filtrado['Data Execucao'] >= hoje) |
+        (df_filtrado['Data da Escala'] >= hoje)
+    ].reset_index(drop=True)
+    st.divider()
+    st.subheader('Escalas com divergência de data')
+    st.dataframe(df_filtrado, hide_index=True, use_container_width=True)
+    
+    if len(periodo) == 2:
+        data_inicial, data_final = periodo
+
+        df_filtrado = df_filtrado[
+            ((df_filtrado['Data Execucao'] >= data_inicial) &
+            (df_filtrado['Data Execucao'] <= data_final)) |
+            ((df_filtrado['Data da Escala'] >= data_inicial) &
+            (df_filtrado['Data da Escala'] <= data_final))
+        ].reset_index(drop=True)
+        
+        st.divider()
+        st.subheader('Escalas com divergência de data')
+        st.dataframe(df_filtrado, hide_index=True, use_container_width=True)
+elif len(periodo) == 2:  # Verifica se o intervalo está completo
     data_inicial, data_final = periodo
 
-    df_filtrado = st.session_state.df_scale_date_divergence[
-        (st.session_state.df_scale_date_divergence['Data Execucao'] >= data_inicial) &
-        (st.session_state.df_scale_date_divergence['Data Execucao'] <= data_final)
+    df_filtrado = df_filtrado[
+        ((df_filtrado['Data Execucao'] >= data_inicial) &
+        (df_filtrado['Data Execucao'] <= data_final)) |
+        ((df_filtrado['Data da Escala'] >= data_inicial) &
+        (df_filtrado['Data da Escala'] <= data_final))
     ].reset_index(drop=True)
             
     # Exibe o dataframe completo
     st.divider()
     st.dataframe(df_filtrado, hide_index=True, use_container_width=True)
-else:
-    
-    # Checkbox para mostrar apenas os dados do futuro
-    with row0[0]:
-        show_future = st.checkbox('Mostrar apenas escalas futuras', value=True)
-    
-    if show_future:
-    
-        hoje = pd.Timestamp.today().date()
-        df_futuro = st.session_state.df_scale_date_divergence[
-            (st.session_state.df_scale_date_divergence['Data Execucao'] >= hoje) |
-            (st.session_state.df_scale_date_divergence['Data da Escala'] >= hoje)
-        ].reset_index(drop=True)
-        st.divider()
-        st.subheader('Escalas com divergência de data')
-        st.dataframe(df_futuro, hide_index=True, use_container_width=True)
-    
-    else:
-    
-        df = st.session_state.df_scale_date_divergence
-        
-        st.divider()
-        st.subheader('Escalas com divergência de data')
-        st.dataframe(df, hide_index=True, use_container_width=True)
+else:    
+    st.divider()
+    st.subheader('Escalas com divergência de data')
+    st.dataframe(df_filtrado, hide_index=True, use_container_width=True)
