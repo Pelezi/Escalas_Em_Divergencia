@@ -34,6 +34,9 @@ def bd_phoenix(vw_name):
     df = df.applymap(lambda x: float(x) if isinstance(x, decimal.Decimal) else x)
     return df
 
+# Configuração da página Streamlit
+st.set_page_config(layout='wide')
+
 if not 'df_scale_date_divergence' in st.session_state:
     # Carrega os dados da view `vw_vehicle_ocupation`
     st.session_state.df_scale_date_divergence = bd_phoenix('vw_scale_date_divergence')
@@ -61,8 +64,25 @@ if len(periodo) == 2:  # Verifica se o intervalo está completo
     st.dataframe(df_filtrado, hide_index=True, use_container_width=True)
 else:
     
-    df = st.session_state.df_scale_date_divergence
+    # Checkbox para mostrar apenas os dados do futuro
+    with row0[0]:
+        show_future = st.checkbox('Mostrar apenas escalas futuras', value=False)
     
-    st.divider()
-    st.subheader('Ocupação Média por Tipo de Veículo')
-    st.dataframe(df, hide_index=True, use_container_width=True)
+    if show_future:
+    
+        hoje = pd.Timestamp.today().date()
+        df_futuro = st.session_state.df_scale_date_divergence[
+            (st.session_state.df_scale_date_divergence['Data Execucao'] >= hoje) |
+            (st.session_state.df_scale_date_divergence['Data da Escala'] >= hoje)
+        ].reset_index(drop=True)
+        st.divider()
+        st.subheader('Escalas com divergência de data')
+        st.dataframe(df_futuro, hide_index=True, use_container_width=True)
+    
+    else:
+    
+        df = st.session_state.df_scale_date_divergence
+        
+        st.divider()
+        st.subheader('Escalas com divergência de data')
+        st.dataframe(df, hide_index=True, use_container_width=True)
