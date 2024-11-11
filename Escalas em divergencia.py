@@ -63,9 +63,6 @@ if show_future:
         (df_filtrado['Data Execucao'] >= hoje) |
         (df_filtrado['Data da Escala'] >= hoje)
     ].reset_index(drop=True)
-    st.divider()
-    st.subheader('Escalas com divergência de data')
-    st.dataframe(df_filtrado, hide_index=True, use_container_width=True)
     
     if len(periodo) == 2:
         data_inicial, data_final = periodo
@@ -77,6 +74,10 @@ if show_future:
             (df_filtrado['Data da Escala'] <= data_final))
         ].reset_index(drop=True)
         
+        st.divider()
+        st.subheader('Escalas com divergência de data')
+        st.dataframe(df_filtrado, hide_index=True, use_container_width=True)
+    else:
         st.divider()
         st.subheader('Escalas com divergência de data')
         st.dataframe(df_filtrado, hide_index=True, use_container_width=True)
@@ -92,6 +93,7 @@ elif len(periodo) == 2:  # Verifica se o intervalo está completo
             
     # Exibe o dataframe completo
     st.divider()
+    st.subheader('Escalas com divergência de data')
     st.dataframe(df_filtrado, hide_index=True, use_container_width=True)
 else:    
     st.divider()
