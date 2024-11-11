@@ -66,7 +66,7 @@ else:
     
     # Checkbox para mostrar apenas os dados do futuro
     with row0[0]:
-        show_future = st.checkbox('Mostrar apenas escalas futuras', value=False)
+        show_future = st.checkbox('Mostrar apenas escalas futuras', value=True)
     
     if show_future:
     
