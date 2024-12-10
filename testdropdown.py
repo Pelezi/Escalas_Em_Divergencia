@@ -1,7 +1,7 @@
 import streamlit as st
-import pandas as pd
 import mysql.connector
 import decimal
+import pandas as pd
 import requests
 
 config = {
@@ -78,8 +78,10 @@ if uploaded_file is not None:
         try:
             guia_api = fetch_data(row['Guia'], "guide")
             id_guia = guia_api[0]['id']
-            st.write(id_guia)
-            
+            motorista_api = fetch_data(row['Motorista'], "driver")
+            id_motorista = motorista_api[0]['id']
+            veiculo_api = fetch_data(row['Veiculo'], "vehicle")
+            id_veiculo = veiculo_api[0]['id']
             
         except Exception as e:
             st.error(f"An error occurred: {e}")
@@ -87,6 +89,8 @@ if uploaded_file is not None:
         payload = {
             "id_escala": id_escala,
             "id_guia": id_guia,
+            "id_motorista": id_motorista,
+            "id_veiculo": id_veiculo,
             "id_servicos": id_servicos
         }
         st.write(payload)
