@@ -130,8 +130,14 @@ if uploaded_file is not None:
         id_escala = dataframe_escala['ID Escala'].values[0]
         id_servicos = dataframe_escala['ID Servico'].tolist()
         try:
-            id_guia = handle_selection(row, 'Guia', 'guide', dataframe_escala, 'ID Guia')
-            id_motorista = handle_selection(row, 'Motorista', 'driver', dataframe_escala, 'ID Motorista')
+            if pd.notna(row['Guia']):
+                id_guia = handle_selection(row, 'Guia', 'guide', dataframe_escala, 'ID Guia')
+            else:
+                id_guia = None
+            if pd.notna(row['Motorista']):
+                id_motorista = handle_selection(row, 'Motorista', 'driver', dataframe_escala, 'ID Motorista')
+            else:
+                id_motorista = None
             id_veiculo = handle_selection(row, 'Veiculo', 'vehicle', dataframe_escala, 'ID Veiculo')
         except Exception as e:
             st.error(f"Ocorreu um erro: {e}")
@@ -147,9 +153,18 @@ if uploaded_file is not None:
             "roadmap_id": id_escala,
             "codigo_antigo": codigo_escala
         }
-        guia = dataframe_escalas[dataframe_escalas['ID Guia'] == id_guia]['Guia'].values[0]
-        motorista = dataframe_escalas[dataframe_escalas['ID Motorista'] == id_motorista]['Motorista'].values[0]
-        veiculo = dataframe_escalas[dataframe_escalas['ID Veiculo'] == id_veiculo]['Veiculo'].values[0]
+        if id_guia:
+            guia = dataframe_escalas[dataframe_escalas['ID Guia'] == id_guia]['Guia'].values[0]
+        else:
+            guia = 'Guia não selecionado'
+        if id_motorista:
+            motorista = dataframe_escalas[dataframe_escalas['ID Motorista'] == id_motorista]['Motorista'].values[0]
+        else:
+            motorista = 'Motorista não selecionado'
+        if id_veiculo:
+            veiculo = dataframe_escalas[dataframe_escalas['ID Veiculo'] == id_veiculo]['Veiculo'].values[0]
+        else:
+            veiculo = 'Veículo não selecionado'
         st.write(f"Novo guia: {guia}")
         st.write(f"Novo motorista: {motorista}")
         st.write(f"Novo veículo: {veiculo}")
@@ -163,17 +178,12 @@ if uploaded_file is not None:
             escala_atual = escala.copy()
             escala_atual.pop('codigo_antigo')
             if escala_atual['guide_id'] == None:
-                escala['status'] = 'Erro: Guia não selecionado'
-                placeholder.dataframe(escalas_para_atualizar)
-                continue
+                escala_atual.pop('guide_id')
             if escala_atual['driver_id'] == None:
-                escala['status'] = 'Erro: Motorista não selecionado'
-                placeholder.dataframe(escalas_para_atualizar)
-                continue
+                escala_atual.pop('driver_id')
             if escala_atual['vehicle_id'] == None:
-                escala['status'] = 'Erro: Veículo não selecionado'
-                placeholder.dataframe(escalas_para_atualizar)
-                continue
+                escala_atual.pop('vehicle_id')
+            st.write(escala_atual)
             status = update_scale(escala_atual)
             escala['status'] = status
             placeholder.dataframe(escalas_para_atualizar)
