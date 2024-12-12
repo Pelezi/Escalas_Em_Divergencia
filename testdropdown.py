@@ -4,131 +4,181 @@ import decimal
 import pandas as pd
 import requests
 
+st.set_page_config(layout='wide')
+
+
 config = {
     'user': 'user_automation_jpa',
     'password': 'luck_jpa_2024',
     'host': 'comeia.cixat7j68g0n.us-east-1.rds.amazonaws.com',
     'database': 'test_phoenix_joao_pessoa'
 }
+
 def bd_phoenix(vw_name):
-    # Parametros de Login AWS
-    # Conexão às Views
     conexao = mysql.connector.connect(**config)
     cursor = conexao.cursor()
-
     request_name = f'SELECT * FROM {vw_name}'
-
-    # Script MySQL para requests
     cursor.execute(request_name)
-    # Coloca o request em uma variavel
     resultado = cursor.fetchall()
-    # Busca apenas os cabeçalhos do Banco
     cabecalho = [desc[0] for desc in cursor.description]
-
-    # Fecha a conexão
     cursor.close()
     conexao.close()
-
-    # Coloca em um dataframe e converte decimal para float
     df = pd.DataFrame(resultado, columns=cabecalho)
     df = df.applymap(lambda x: float(x) if isinstance(x, decimal.Decimal) else x)
     return df
 
-# Configuração da página Streamlit
-st.set_page_config(layout='wide')
 
 if not 'df_scales' in st.session_state:
-    # Carrega os dados da view `vw_vehicle_ocupation`
-    st.session_state.df_scales = bd_phoenix('vw_scales')
+    with st.spinner('Puxando dados do Phoenix...'):
+        st.session_state.df_scales = bd_phoenix('vw_scales')
 
 dataframe_escalas = st.session_state.df_scales
 st.title('Edição de escala')
-
 st.divider()
 
-
-uploaded_file = st.file_uploader("Choose a file")
+uploaded_file = st.file_uploader("Escolha um arquivo")
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file, delimiter=";")
-    # separate collumns by comma    
-    st.write(df)
+    st.dataframe(df)
 
-# Base URL for the guide API
-BASE_URL = "https://driverjoao_pessoa.phoenix.comeialabs.com/scale/"
+def generate_template():
+    data = {
+        'Escala': ['Exemplo 1', 'Exemplo 2'],
+        'Guia': ['Guia 1', 'Guia 2'],
+        'Motorista': ['Motorista 1', 'Motorista 2'],
+        'Veiculo': ['Veiculo 1', 'Veiculo 2'],
+    }
+    df_template = pd.DataFrame(data)
+    return df_template
 
-# Fetch data from the API with a search query
+template = generate_template()
+
+csv = template.to_csv(index=False, sep=';')
+
+st.download_button(
+    label="Baixar planilha modelo",
+    data=csv,
+    file_name="planilha_modelo.csv",
+    mime="text/csv"
+)
+
+BASE_URL_GET = "https://driverjoao_pessoa.phoenix.comeialabs.com/scale/"
+BASE_URL_POST = "https://httpbin.org/post"
+# BASE_URL_POST = 'https://driverjoao_pessoa.phoenix.comeialabs.com/scale/roadmap/allocate'
+
 def fetch_data(search_query, object):
     params = {"page": 1, "fields": "", "q": search_query}
     try:
-        if not search_query or search_query == "No results found":
+        if not search_query:
             params.pop("q")
-        response = requests.get(BASE_URL + object, params=params, verify=False)
+        response = requests.get(BASE_URL_GET + object, params=params, verify=False)
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
-        st.error(f"An error occurred: {e}")
+        st.error(f"Ocorreu um erro: {e}")
         return []
-    
+
+def handle_selection(row, column_name, object_name, dataframe_escala, id_column_name):
+    api_data = fetch_data(row[column_name], object_name)
+    if not api_data:
+        st.warning(f"Nenhum resultado encontrado para o {column_name.lower()} fornecido, será utilizado o {column_name.lower()} já existente na escala.")
+        return dataframe_escala[id_column_name].values[0]
+    elif len(api_data) > 1:
+        if object_name == 'vehicle':
+            options = {f"{item['name']} ({item['model']}) - {item['plate']}": item["id"] for item in api_data}
+        else:
+            options = {f"{item['nickname']} ({item['name']})": item["id"] for item in api_data}
+        selected_option = st.selectbox(f"Selecione um {column_name}", options=list(options.keys()))
+        return options[selected_option]
+    else:
+        return api_data[0]['id']
+
+def update_scale(payload):
+    try:
+        response = requests.post(BASE_URL_POST, json=payload, verify=False)
+        response.raise_for_status()
+        return 'Escala atualizada com sucesso!'
+    except requests.RequestException as e:
+        st.error(f"Ocorreu um erro: {e}")
+        return 'Erro ao atualizar a escala'
+
+def get_codigo_antigo(reserve_service_id):
+    codigo_antigo = dataframe_escalas[
+        (dataframe_escalas['ID Servico'] == reserve_service_id) 
+    ]
+    if codigo_antigo.empty:
+        return 'Escala não encontrada'
+    return codigo_antigo['Escala'].values[0]
+
+def get_novo_codigo(reserve_service_id):
+    novo_codigo = novo_dataframe_escalas[
+        (novo_dataframe_escalas['ID Servico'] == reserve_service_id) 
+    ]
+    if novo_codigo.empty:
+        return 'Escala não encontrada'
+    return novo_codigo['Escala'].values[0]
+
+st.header('Escalas para edição')
+st.divider()
+
 if uploaded_file is not None:
+    escalas_para_atualizar = []
     for index, row in df.iterrows():
         dataframe_escala = dataframe_escalas[dataframe_escalas['Escala'] == row['Escala']]
-        st.dataframe(dataframe_escala)
+        st.header(f'{dataframe_escala["Escala"].values[0]}')
+        st.dataframe(dataframe_escala, hide_index=True)
         id_escala = dataframe_escala['ID Escala'].values[0]
         id_servicos = dataframe_escala['ID Servico'].tolist()
         try:
-            guia_api = fetch_data(row['Guia'], "guide")
-            id_guia = guia_api[0]['id']
-            motorista_api = fetch_data(row['Motorista'], "driver")
-            id_motorista = motorista_api[0]['id']
-            veiculo_api = fetch_data(row['Veiculo'], "vehicle")
-            id_veiculo = veiculo_api[0]['id']
-            
+            id_guia = handle_selection(row, 'Guia', 'guide', dataframe_escala, 'ID Guia')
+            id_motorista = handle_selection(row, 'Motorista', 'driver', dataframe_escala, 'ID Motorista')
+            id_veiculo = handle_selection(row, 'Veiculo', 'vehicle', dataframe_escala, 'ID Veiculo')
         except Exception as e:
-            st.error(f"An error occurred: {e}")
+            st.error(f"Ocorreu um erro: {e}")
         
+        date_str = dataframe_escala['Data da Escala'].values[0].strftime('%Y-%m-%d')
+        codigo_escala = dataframe_escala['Escala'].values[0]
         payload = {
-            "id_escala": id_escala,
-            "id_guia": id_guia,
-            "id_motorista": id_motorista,
-            "id_veiculo": id_veiculo,
-            "id_servicos": id_servicos
+            "date": date_str,
+            "vehicle_id": id_veiculo,
+            "reserve_service_ids": id_servicos,
+            "guide_id": id_guia,
+            "driver_id": id_motorista,
+            "roadmap_id": id_escala,
+            "codigo_antigo": codigo_escala
         }
-        st.write(payload)
-        guia = row['Guia']
-        motorista = row['Motorista']
-        veiculo = row['Veiculo']
-        
-
-
-# Parse the response data into a dictionary of nicknames and IDs
-def parse_nicknames_and_ids(data):
-    return {item["nickname"]: item["id"] for item in data}
-
-# Streamlit app
-st.title("Dynamic Nickname Selector")
-
-# Text input for search query
-search_query = st.text_input("Search for a nickname", value="", key="search_query")
-
-# Fetch data dynamically based on the search query
-# data = fetch_data(search_query)
-# nicknames_and_ids = parse_nicknames_and_ids(data) if data else {}
-
-# Ensure there is always an option to display
-# options = list(nicknames_and_ids.keys()) or ["No results found"]
-
-# Selectbox with search functionality
-# selected_nickname = st.selectbox(
-#     "Select a nickname",
-#     options=options,
-#     format_func=lambda x: x if x != "No results found" else "",
-# )
-
-# # Display and handle submission
-# if selected_nickname and selected_nickname != "No results found":
-#     selected_id = nicknames_and_ids[selected_nickname]
-#     if st.button("Submit"):
-#         st.success(f"Selected Nickname: {selected_nickname}, ID: {selected_id}")
-#         # Add backend logic here if needed (e.g., sending the ID to a server)
-# else:
-#     st.warning("Please type and select a valid nickname.")
+        guia = dataframe_escalas[dataframe_escalas['ID Guia'] == id_guia]['Guia'].values[0]
+        motorista = dataframe_escalas[dataframe_escalas['ID Motorista'] == id_motorista]['Motorista'].values[0]
+        veiculo = dataframe_escalas[dataframe_escalas['ID Veiculo'] == id_veiculo]['Veiculo'].values[0]
+        st.write(f"Novo guia: {guia}")
+        st.write(f"Novo motorista: {motorista}")
+        st.write(f"Novo veículo: {veiculo}")
+        escalas_para_atualizar.append(payload)
+        st.divider()
+    
+    placeholder = st.empty()
+    placeholder.dataframe(escalas_para_atualizar)
+    if st.button("Atualizar escalas"):
+        for escala in escalas_para_atualizar:
+            escala_atual = escala.copy()
+            escala_atual.pop('codigo_antigo')
+            if escala_atual['guide_id'] == None:
+                escala['status'] = 'Erro: Guia não selecionado'
+                placeholder.dataframe(escalas_para_atualizar)
+                continue
+            if escala_atual['driver_id'] == None:
+                escala['status'] = 'Erro: Motorista não selecionado'
+                placeholder.dataframe(escalas_para_atualizar)
+                continue
+            if escala_atual['vehicle_id'] == None:
+                escala['status'] = 'Erro: Veículo não selecionado'
+                placeholder.dataframe(escalas_para_atualizar)
+                continue
+            status = update_scale(escala_atual)
+            escala['status'] = status
+            placeholder.dataframe(escalas_para_atualizar)
+        novo_dataframe_escalas = bd_phoenix('vw_scales')
+        for escala in escalas_para_atualizar:
+            novo_codigo = get_novo_codigo(escala['reserve_service_ids'][0])
+            escala['novo_codigo'] = novo_codigo
+            placeholder.dataframe(escalas_para_atualizar)
